@@ -8,7 +8,6 @@
 */
 
 #include <fstream>
-
 #include "opencorr.h"
 
 using namespace opencorr;
@@ -16,12 +15,14 @@ using namespace std;
 
 int main()
 {
+	string folder_path = "D:/Development/OpenCorr_sol/OpenCorr/examples/3d_dic/";
 	//set paths of images.
+	
 	//in this example, the right image of initial state is used as the reference image
-	string ref_view1_image_path = "d:/dic_tests/3d_dic/GT4-0000_0.tif"; //replace it with the path on your computer
-	string ref_view2_image_path = "d:/dic_tests/3d_dic/GT4-0000_1.tif"; //replace it with the path on your computer
-	string tar_view1_image_path = "d:/dic_tests/3d_dic/GT4-0273_0.tif"; //replace it with the path on your computer
-	string tar_view2_image_path = "d:/dic_tests/3d_dic/GT4-0273_1.tif"; //replace it with the path on your computer
+	string ref_view1_image_path = folder_path + "GT4-0000_0.tif"; //replace it with the path on your computer
+	string ref_view2_image_path = folder_path + "GT4-0000_1.tif"; //replace it with the path on your computer
+	string tar_view1_image_path = folder_path + "GT4-0273_0.tif"; //replace it with the path on your computer
+	string tar_view2_image_path = folder_path + "GT4-0273_1.tif"; //replace it with the path on your computer
 
 	//create the instances of images
 	Image2D ref_view1_img(ref_view1_image_path);
@@ -38,7 +39,7 @@ int main()
 	in_out.setWidth(ref_view1_img.width);
 
 	//load the coordinates of POIs in principal view
-	string file_path = "d:/dic_tests/3d_dic/GT4-POIs.csv"; //replace it with the path on your computer
+	string file_path = folder_path + "GT4-POIs.csv"; //replace it with the path on your computer
 	vector<Point2D> ref_view1_pt_queue = in_out.loadPoint2D(file_path);
 	int queue_length = (int)ref_view1_pt_queue.size();
 

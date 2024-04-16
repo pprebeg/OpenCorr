@@ -15,7 +15,8 @@ using namespace std;
 int main()
 {
 	//select the image file to get the file name to process
-	string tar_image_path = "d:/dic_tests/3d_dic/GT4-0273_0.tif"; //replace it with the path on your computer
+	string tar_image_path = "D:/Development/OpenCorr_sol/OpenCorr/examples/3d_dic/GT4-0273_0.tif"; //replace it with the path on your computer
+	//string tar_image_path = "d:/dic_tests/3d_dic/GT4-0273_0.tif"; //replace it with the path on your computer
 	Image2D tar_img(tar_image_path);
 
 	//initialize papameters for timing
