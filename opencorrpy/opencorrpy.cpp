@@ -54,13 +54,14 @@ void dic_3d_epipolar_sift(
 	const std::string& cam0_tar_file_path,
 	const std::string& cam1_tar_file_path,
 	const std::string& poi_file_path,
+	const std::string& dic_result_file_path,
+	const std::string& dic_out_time_file_path,
 	const py::dict& config_data)
 {
 	//create the instances of camera parameters
 	CameraIntrinsics view1_cam_intrinsics, view2_cam_intrinsics;
 	CameraExtrinsics view1_cam_extrinsics, view2_cam_extrinsics;
 	update_progress("dic_3d_epipolar_sift function started");
-	update_progress("Transfering calibration data.");
 	view1_cam_intrinsics.fx = cal_data["Cam0_Fx [pixels]"].cast<float>();
 	view1_cam_intrinsics.fy = cal_data["Cam0_Fy [pixels]"].cast<float>();
 	view1_cam_intrinsics.fs = cal_data["Cam0_Fs [pixels]"].cast<float>();
@@ -105,7 +106,6 @@ void dic_3d_epipolar_sift(
 
 
 	//set paths of images.
-	update_progress("Transfering image path data.");
 	string ref_view1_image_path = cam0_ref_file_path;
 	string ref_view2_image_path = cam1_ref_file_path; 
 	string tar_view1_image_path = cam0_tar_file_path; 
@@ -126,7 +126,6 @@ void dic_3d_epipolar_sift(
 	in_out.setWidth(ref_view1_img.width);
 
 	//load the coordinates of POIs in principal view
-	update_progress("Transfering poi file path data.");
 	string file_path = poi_file_path; 
 	vector<Point2D> ref_view1_pt_queue = in_out.loadPoint2D(file_path);
 	int queue_length = (int)ref_view1_pt_queue.size();
@@ -188,14 +187,11 @@ void dic_3d_epipolar_sift(
 	int stop_condition = 10;
 
 	key = "ss_radius_x";
-	update_progress("ss_radius_x 1");
 	if (config_data.contains(key)) {
-		update_progress("ss_radius_x");
 		subset_radius_x = config_data[key.c_str()].cast<int>();
 	}
 	key = "ss_radius_y";
 	if (config_data.contains(key)) {
-		update_progress("ss_radius_y");
 		subset_radius_y = config_data[key.c_str()].cast<int>();
 	}
 
@@ -504,14 +500,13 @@ void dic_3d_epipolar_sift(
 	//display the time of processing on the screen
 	update_progress("Stereo reconstruction and calculation of displacements takes " + to_string(consumed_time) + " sec.");
 
-
 	//save the results
-	file_path = tar_view1_image_path.substr(0, tar_view1_image_path.find_last_of(".")) + "_epipolar_sift_r16.csv";
+	file_path = dic_result_file_path;
 	in_out.setPath(file_path);
 	in_out.saveTable2DS(poi_result_queue);
 
 	//save the computation time
-	file_path = tar_view1_image_path.substr(0, tar_view1_image_path.find_last_of(".")) + "_epipolar_sift_r16_time.csv";
+	file_path = dic_out_time_file_path;
 	csv_out.open(file_path);
 	if (csv_out.is_open())
 	{
@@ -525,10 +520,106 @@ void dic_3d_epipolar_sift(
 	delete sift;
 	delete feature_affine;
 	delete epipolar_search;
-
 	update_progress("dic_3d_epipolar_sift function finished!");
+}
+void dic_3d_strain(
+	const std::function<void(const std::string&)>& update_progress,
+	const std::string& tar_file_path,
+	const std::string& dic_result_file_path,
+	const std::string& strain_out_time_file_path,
+	const py::dict& config_data
+	)
+{
+	update_progress("dic_3d_strain function started!");
+	//select the image file to get the file name to process
+	string tar_image_path = tar_file_path;
+	Image2D tar_img(tar_image_path);
+
+	//initialize papameters for timing
+	double timer_tic, timer_toc, consumed_time;
+	vector<double> computation_time;
+
+	//get the time of start
+	timer_tic = omp_get_wtime();
+
+	//get the DIC results from csv file
+	string file_path = dic_result_file_path;
+	string delimiter = ",";
+	ofstream csv_out; //instance for output calculation time
+	IO2D in_out; //instance for input and output DIC data
+	in_out.setPath(file_path);
+	in_out.setHeight(tar_img.height);
+	in_out.setWidth(tar_img.width);
+	in_out.setDelimiter(delimiter);
+
+	//load a queue of POIs
+	vector<POI2DS> poi_queue = in_out.loadTable2DS();
+
+	//set OpenMP parameters
+	int cpu_thread_number = omp_get_num_procs() - 1;
+	omp_set_num_threads(cpu_thread_number);
+
+	//set the radius of subregion for polynomial fit of displacement field
+	float strain_radius = 20.f;
+	string key;
+	key = "strain_radius";
+	if (config_data.contains(key)) {
+		strain_radius = config_data[key.c_str()].cast<float>();
+	}
+
+	//set the miminum number of neighbor POIs to perform fitting
+	int min_neighbors = 5;
+	key = "min_neighbors";
+	if (config_data.contains(key)) {
+		min_neighbors = config_data[key.c_str()].cast<int>();
+	}
+
+	//initialize a object of stain calculation
+	Strain* strain = new Strain(strain_radius, min_neighbors, cpu_thread_number);
+
+	//get the time of end 
+	timer_toc = omp_get_wtime();
+	consumed_time = timer_toc - timer_tic;
+	computation_time.push_back(consumed_time); //0
+
+	//display the time of initialization on screen
+	update_progress("Initialization takes " + to_string(consumed_time) + " sec, " + to_string(cpu_thread_number) + " CPU threads launched.");
+
+	//get the time of start
+	timer_tic = omp_get_wtime();
+
+	//calculate the strain exx, eyy, ezz, exy, eyz, ezx
+	strain->prepare(poi_queue);
+	strain->compute(poi_queue);
+
+	//get time of end
+	timer_toc = omp_get_wtime();
+	consumed_time = timer_toc - timer_tic;
+	computation_time.push_back(consumed_time); //1
+
+	update_progress("Strain calculation of " + to_string(poi_queue.size()) + " POIs takes " + to_string(consumed_time) + " sec.");
+
+	//update the table of DIC results with calculated strains
+	in_out.saveTable2DS(poi_queue);
+
+	//save the computation time
+	file_path = strain_out_time_file_path;
+	csv_out.open(file_path);
+	if (csv_out.is_open())
+	{
+		csv_out << "POI number" << delimiter << "Initialization" << delimiter << "Strain calculation" << endl;
+		csv_out << poi_queue.size() << delimiter << computation_time[0] << delimiter << computation_time[1] << endl;
+	}
+	csv_out.close();
+
+	//destroy the instance
+	delete strain;
+	update_progress("dic_3d_strain function finished!");
+
+
 }
 
 PYBIND11_MODULE(opencorrpy, m) {
 	m.def("dic_3d_epipolar_sift", &dic_3d_epipolar_sift);
+	m.def("dic_3d_strain", &dic_3d_strain);
 }
